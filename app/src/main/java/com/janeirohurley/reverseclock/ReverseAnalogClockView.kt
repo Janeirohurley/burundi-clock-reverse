@@ -19,24 +19,52 @@ class ReverseAnalogClockView @JvmOverloads constructor(
 ) : View(context, attrs) {
     private val centerBitmap: Bitmap = BitmapFactory.decodeResource(resources, R.drawable.burundi)
 
-    val newWidth = 600  // largeur désirée en pixels
-    val newHeight = 690 // hauteur désirée en pixels
+    // Image redimensionnée (sera calculée dans onSizeChanged pour être responsive)
+    private var scaledBitmap: Bitmap? = null
 
-    val scaledBitmap = Bitmap.createScaledBitmap(centerBitmap, newWidth, newHeight, true)
+    // Dimensions responsives
+    private var mRadius = 0f
+    private var mCx = 0f
+    private var mCy = 0f
+    
+    private var tickSizeHour = 0f
+    private var tickSizeMinute = 0f
+    private var handStrokeHour = 0f
+    private var handStrokeSecond = 0f
+    private var centerDotRadius = 0f
+    
+    // Offsets pour le positionnement
+    private var tickRadiusOuter = 0f
+    private var numberRadius = 0f
+    private var textOffsetNtafatiro = 0f
+    private var textOffsetDesigner = 0f
+    private var numberAdjustment = 0f
+
     private val clockPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
-        strokeWidth = 8f
         style = Paint.Style.STROKE
         setShadowLayer(5f, 5f, 5f, Color.BLACK)
     }
 
     private val numberPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
-        textSize = 80f   // taille
         textAlign = Paint.Align.CENTER
         typeface = Typeface.MONOSPACE  // 🔥 texte en gras
     }
 
+    // 🎨 Variable pour le texte "Ntafatiro" en vert clair
+    private val ntafatiroPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#90EE90") // Light Green
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        setShadowLayer(5f, 5f, 5f, Color.BLACK)
+    }
+
+    // 🎨 Variable pour "designed by..." en petit
+    private val designerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.LTGRAY 
+        textAlign = Paint.Align.CENTER
+    }
 
     private val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
@@ -50,15 +78,61 @@ class ReverseAnalogClockView @JvmOverloads constructor(
         setShadowLayer(5f, 5f, 5f, Color.BLACK)
     }
 
-    private fun drawTicks(canvas: Canvas, tickRadiusOuter: Float) {
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (w > 0 && h > 0) {
+            mCx = w / 2f
+            mCy = h / 2f
+            // Padding dynamique : ~8% du rayon max disponible
+            val minDim = minOf(mCx, mCy)
+            mRadius = minDim * 0.92f // Laisse un peu de marge
+            
+            // Mise à jour des tailles de texte et traits en fonction du rayon
+            clockPaint.strokeWidth = mRadius * 0.015f
+            
+            numberPaint.textSize = mRadius * 0.16f
+            ntafatiroPaint.textSize = mRadius * 0.10f
+            designerPaint.textSize = mRadius * 0.06f
+            
+            // Tailles pour les ticks et aiguilles
+            tickSizeHour = mRadius * 0.024f
+            tickSizeMinute = mRadius * 0.01f
+            
+            handStrokeHour = mRadius * 0.04f
+            handStrokeSecond = mRadius * 0.02f
+            centerDotRadius = mRadius * 0.06f
+            
+            // Offsets
+            tickRadiusOuter = mRadius * 0.95f
+            numberRadius = mRadius * 0.74f // Ajusté pour correspondre à la position idéale
+            
+            textOffsetNtafatiro = mRadius * 0.08f // Marge par rapport à l'image
+            textOffsetDesigner = mRadius * 0.10f
+            numberAdjustment = mRadius * 0.07f
 
+            
+            // Calculer la taille de l'image de manière responsive
+            // On vise une hauteur d'environ 90% du rayon de l'horloge
+            val targetHeight = (mRadius * 0.9f).toInt()
+            
+            // Garder le ratio d'aspect de l'image originale
+            val aspectRatio = centerBitmap.width.toFloat() / centerBitmap.height.toFloat()
+            val targetWidth = (targetHeight * aspectRatio).toInt()
+            
+            if (targetWidth > 0 && targetHeight > 0) {
+                scaledBitmap = Bitmap.createScaledBitmap(centerBitmap, targetWidth, targetHeight, true)
+            }
+        }
+    }
+
+    private fun drawTicks(canvas: Canvas) {
         for (i in 0 until 60) {
-
             val angle = Math.toRadians((i * 6).toDouble())
-
             val isHourMark = i % 5 == 0
-            val tickSize = if (isHourMark) 12f else 5f
-            val distance = if (isHourMark) 0.98f else 0.98f // proportion du rayon
+            val tickSize = if (isHourMark) tickSizeHour else tickSizeMinute
+            
+            // Distance responsive
+            val distance = if (isHourMark) 0.98f else 0.98f 
 
             val x = (tickRadiusOuter * distance * sin(angle)).toFloat()
             val y = (-tickRadiusOuter * distance * cos(angle)).toFloat()
@@ -71,39 +145,42 @@ class ReverseAnalogClockView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-
         canvas.drawColor(bgColor)
 
-        val cx = width / 2f
-        val cy = height / 2f
-        val radius = minOf(cx, cy) - 40      // rayon du cercle
+        // Utilisation de l'image redimensionnée responsive
+        val currentBitmap = scaledBitmap
+        if (currentBitmap != null) {
+            // 🔹 dessiner l'image centrée et rotative
+            canvas.save()                          // sauvegarde l'état
+            canvas.translate(mCx, mCy)             // déplacer le centre
+            val rotationAngle = -11f               // angle en degrés
+            canvas.rotate(rotationAngle)           // rotation autour du centre
+            canvas.drawBitmap(
+                currentBitmap,
+                -currentBitmap.width / 2f,
+                -currentBitmap.height / 2f,
+                null
+            )
+            canvas.restore()                        // revient à l'état initial
 
-        val tickRadiusOuter = radius - 25     // rayon utilisé pour dessiner les ticks
-        val numberRadius = radius - 130       // rayon pour dessiner les nombres
+            // 🔹 dessiner les textes par rapport à l'image
+            canvas.translate(mCx, mCy)
 
-        // 🔹 dessiner l'image centrée et rotative
-        canvas.save()                          // sauvegarde l'état
-        canvas.translate(cx, cy)                // déplacer le centre
-        val rotationAngle = -11f                 // angle en degrés
-        canvas.rotate(rotationAngle)            // rotation autour du centre
-        canvas.drawBitmap(
-            scaledBitmap,
-            -scaledBitmap.width / 2f,
-            -scaledBitmap.height / 2f,
-            null
-        )
-        canvas.restore()                        // revient à l'état initial
+            // ✍️ AJOUT: "Ntafatiro" en haut de la carte
+            canvas.drawText("Ntafatiro", 0f, -currentBitmap.height / 2f - textOffsetNtafatiro, ntafatiroPaint)
 
-        // 🔹 dessiner le reste de l'horloge
-        canvas.translate(cx, cy)
+            // ✍️ AJOUT: "designed by..." en bas de la carte
+            canvas.drawText("designed by janeiro hurley", 0f, currentBitmap.height / 2f + textOffsetDesigner, designerPaint)
+        } else {
+            // Fallback
+            canvas.translate(mCx, mCy)
+        }
 
+        drawNumbers(canvas)
+        drawHands(canvas)
+        drawTicks(canvas)
 
-        drawNumbers(canvas, numberRadius)
-        drawHands(canvas, radius)
-        drawTicks(canvas, tickRadiusOuter)
-
-
-        drawCircle(canvas, radius, Color.WHITE,)
+        drawCircle(canvas, mRadius, Color.WHITE)
         postInvalidateDelayed(1000)  // tick des secondes
     }
 
@@ -116,36 +193,34 @@ class ReverseAnalogClockView @JvmOverloads constructor(
     /**
      * 🔢 Chiffres inversés MAIS lisibles
      */
-    private fun drawNumbers(canvas: Canvas, baseRadius: Float) {
+    private fun drawNumbers(canvas: Canvas) {
         for (i in 0..11) {
             val angle = Math.toRadians((i * 30).toDouble())
             val displayNumber = if (i == 0) 12 else 12 - i
 
-            // Ajustement dynamique du rayon
-            val numberRadius = if (displayNumber < 10) baseRadius + 35f else baseRadius
+            // Ajustement dynamique du rayon pour les petits nombres
+            val finalNumberRadius = if (displayNumber < 10) numberRadius + numberAdjustment else numberRadius
 
-            val x = (numberRadius * sin(angle)).toFloat()
-            val y = (-numberRadius * cos(angle)).toFloat()
+            val x = (finalNumberRadius * sin(angle)).toFloat()
+            val y = (-finalNumberRadius * cos(angle)).toFloat()
 
             canvas.save()
             canvas.translate(x, y)
             canvas.rotate((i).toFloat()) // pour que le texte reste lisible
-            canvas.drawText(displayNumber.toString(), 0f, 15f, numberPaint)
+            // offset vertical pour centrer le texte responsive
+            val textVOffset = numberPaint.textSize * 0.3f
+            canvas.drawText(displayNumber.toString(), 0f, textVOffset, numberPaint)
             canvas.restore()
         }
     }
 
-
-
-
     /**
      * 🕰️ Aiguilles inversées + fluide
      */
-    private fun drawHands(canvas: Canvas, radius: Float) {
+    private fun drawHands(canvas: Canvas) {
 
         val cal = Calendar.getInstance()
-        val radius2 = minOf(30f,30f)
-
+        
         val seconds = cal.get(Calendar.SECOND)
         val minutes = cal.get(Calendar.MINUTE) + seconds / 60f
         val hours = cal.get(Calendar.HOUR) + minutes / 60f
@@ -154,10 +229,10 @@ class ReverseAnalogClockView @JvmOverloads constructor(
         val minuteAngle = Math.toRadians((-minutes * 6).toDouble())
         val hourAngle = Math.toRadians((-hours * 30).toDouble())
 
-        drawHand(canvas, hourAngle, radius * 0.6f, Color.WHITE, 20f,radius*0.25f)
-        drawHand(canvas, minuteAngle, radius * 0.85f, Color.WHITE, 20f,radius*0.25f)
-        drawCircle(canvas, radius2,Color.WHITE, true)
-        drawHand(canvas, secondAngle, radius * 0.9f, Color.RED, 10f,radius*0.25f)
+        drawHand(canvas, hourAngle, mRadius * 0.6f, Color.WHITE, handStrokeHour, mRadius*0.25f)
+        drawHand(canvas, minuteAngle, mRadius * 0.85f, Color.WHITE, handStrokeHour, mRadius*0.25f)
+        drawCircle(canvas, centerDotRadius, Color.WHITE, true)
+        drawHand(canvas, secondAngle, mRadius * 0.9f, Color.RED, handStrokeSecond, mRadius*0.25f)
     }
     private fun drawHand(
         canvas: Canvas,
