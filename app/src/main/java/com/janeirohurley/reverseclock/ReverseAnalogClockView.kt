@@ -153,8 +153,16 @@ class ReverseAnalogClockView @JvmOverloads constructor(
     private val darkTickColor = Color.WHITE
 
     private fun isDayTime(): Boolean {
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        return hour in 6..17 // Jour entre 6h et 17h59
+        val cal = Calendar.getInstance()
+        val hour = cal.get(Calendar.HOUR) // Format 12h (0-11)
+        val amPm = cal.get(Calendar.AM_PM) // 0 = AM, 1 = PM
+
+        // Jour: 6h AM jusqu'à 6h PM (exclu)
+        return if (amPm == Calendar.AM) {
+            hour >= 6 || hour == 0 // 6-11 AM (hour 0 = 12 AM = minuit, donc nuit)
+        } else {
+            hour in 0..5 // 12 PM - 5 PM (0 = 12h, 1 = 13h, etc.)
+        }
     }
 
     private fun applyTheme() {
@@ -255,10 +263,17 @@ class ReverseAnalogClockView @JvmOverloads constructor(
     private fun drawHands(canvas: Canvas) {
 
         val cal = Calendar.getInstance()
-        
+
         val seconds = cal.get(Calendar.SECOND)
         val minutes = cal.get(Calendar.MINUTE) + seconds / 60f
-        val hours = cal.get(Calendar.HOUR) + minutes / 60f
+        var hours = cal.get(Calendar.HOUR) + minutes / 60f
+        val amPm = cal.get(Calendar.AM_PM)
+
+        // Si c'est PM, décaler de 6 heures (180°)
+        // 12h PM → 6, 1h PM → 7, ... 6h PM → 12
+        if (amPm == Calendar.PM) {
+            hours = (hours + 6) % 12
+        }
 
         val secondAngle = Math.toRadians((-seconds * 6).toDouble())
         val minuteAngle = Math.toRadians((-minutes * 6).toDouble())
