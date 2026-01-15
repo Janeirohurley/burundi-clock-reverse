@@ -64,6 +64,7 @@ class ReverseAnalogClockView @JvmOverloads constructor(
     private val designerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.LTGRAY 
         textAlign = Paint.Align.CENTER
+        textSize = 2f
     }
 
     private val tickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -141,10 +142,43 @@ class ReverseAnalogClockView @JvmOverloads constructor(
         }
     }
 
-    private val bgColor = Color.parseColor("#121212")
+    // Couleurs pour le thème clair (jour: 6h - 18h)
+    private val lightBgColor = Color.parseColor("#F5F5F5")
+    private val lightTextColor = Color.parseColor("#212121")
+    private val lightTickColor = Color.parseColor("#212121")
+
+    // Couleurs pour le thème sombre (nuit: 18h - 6h)
+    private val darkBgColor = Color.parseColor("#121212")
+    private val darkTextColor = Color.WHITE
+    private val darkTickColor = Color.WHITE
+
+    private fun isDayTime(): Boolean {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        return hour in 6..17 // Jour entre 6h et 17h59
+    }
+
+    private fun applyTheme() {
+        if (isDayTime()) {
+            // Thème clair
+            numberPaint.color = lightTextColor
+            tickPaint.color = lightTickColor
+            clockPaint.color = lightTextColor
+            designerPaint.color = Color.DKGRAY
+        } else {
+            // Thème sombre
+            numberPaint.color = darkTextColor
+            tickPaint.color = darkTickColor
+            clockPaint.color = darkTextColor
+            designerPaint.color = Color.LTGRAY
+        }
+    }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+
+        // Appliquer le thème selon l'heure
+        applyTheme()
+        val bgColor = if (isDayTime()) lightBgColor else darkBgColor
         canvas.drawColor(bgColor)
 
         // Utilisation de l'image redimensionnée responsive
@@ -170,7 +204,8 @@ class ReverseAnalogClockView @JvmOverloads constructor(
             canvas.drawText("Ntafatiro", 0f, -currentBitmap.height / 2f - textOffsetNtafatiro, ntafatiroPaint)
 
             // ✍️ AJOUT: "designed by..." en bas de la carte
-            canvas.drawText("designed by janeiro hurley", 0f, currentBitmap.height / 2f + textOffsetDesigner, designerPaint)
+            canvas.drawText("Designed  and developed by ", 0f, currentBitmap.height / 2f + textOffsetDesigner, designerPaint)
+            canvas.drawText("Gasape Group Innovation LTD", 0f, currentBitmap.height / 2f + textOffsetDesigner + 30f, designerPaint)
         } else {
             // Fallback
             canvas.translate(mCx, mCy)
@@ -229,9 +264,10 @@ class ReverseAnalogClockView @JvmOverloads constructor(
         val minuteAngle = Math.toRadians((-minutes * 6).toDouble())
         val hourAngle = Math.toRadians((-hours * 30).toDouble())
 
-        drawHand(canvas, hourAngle, mRadius * 0.6f, Color.WHITE, handStrokeHour, mRadius*0.25f)
-        drawHand(canvas, minuteAngle, mRadius * 0.85f, Color.WHITE, handStrokeHour, mRadius*0.25f)
-        drawCircle(canvas, centerDotRadius, Color.WHITE, true)
+        val handColor = if (isDayTime()) lightTextColor else darkTextColor
+        drawHand(canvas, hourAngle, mRadius * 0.6f, handColor, handStrokeHour, mRadius*0.25f)
+        drawHand(canvas, minuteAngle, mRadius * 0.85f, handColor, handStrokeHour, mRadius*0.25f)
+        drawCircle(canvas, centerDotRadius, handColor, true)
         drawHand(canvas, secondAngle, mRadius * 0.9f, Color.RED, handStrokeSecond, mRadius*0.25f)
     }
     private fun drawHand(
